@@ -293,6 +293,35 @@ function renderCalendar(data) {
   }, 200);
 }
 
+function setupCalendarDrag() {
+  const strip = $('calStrip');
+  if (!strip || strip.dataset.dragReady) return;
+  strip.dataset.dragReady = '1';
+  let isDown = false;
+  let startX = 0;
+  let scrollLeft = 0;
+  strip.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isDown = true;
+    strip.classList.add('is-dragging');
+    startX = e.pageX;
+    scrollLeft = strip.scrollLeft;
+  });
+  strip.addEventListener('mouseleave', () => {
+    isDown = false;
+    strip.classList.remove('is-dragging');
+  });
+  strip.addEventListener('mouseup', () => {
+    isDown = false;
+    strip.classList.remove('is-dragging');
+  });
+  strip.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    strip.scrollLeft = scrollLeft - (e.pageX - startX);
+  });
+}
+
 function buildWinnersMap(data) {
   const m = {};
   if (data.last_race && data.last_race.podium && data.last_race.podium[0]) {
@@ -1496,18 +1525,118 @@ function tickNext3() {
 /* ================================================================
    DRIVER SPOTLIGHT · the fav driver's career + form
    ================================================================ */
+let __spotlightDriver = null;
+let __spotlightCache = null;
+let __spotlightCacheAt = 0;
+let __spotlightFetch = null;
+const SPOTLIGHT_CACHE_MS = 5 * 60 * 1000;
+
+function applySpotlightExtras(info) {
+  const cwEl = document.querySelector('#ssCareerWins .ss-value');
+  const cpEl = document.querySelector('#ssCareerPoles .ss-value');
+  if (cwEl) cwEl.innerHTML = `${info.career && info.career.wins != null ? info.career.wins : '—'}<small>all-time</small>`;
+  if (cpEl) cpEl.innerHTML = `${info.career && info.career.poles != null ? info.career.poles : '—'}<small>all-time</small>`;
+
+  const row = document.getElementById('spotFormRow');
+  if (!row) return;
+  if (info.season_results && info.season_results.length) {
+    row.innerHTML = info.season_results.map(rr => {
+      const pStr = rr.pos || '—';
+      const isDnf = rr.status && rr.status !== 'Finished' && !/^\+\d/.test(rr.status) && !/Lap/i.test(rr.status);
+      const cls = ['sl-form-pill'];
+      if (['1', '2', '3'].includes(String(pStr))) cls.push('is-podium');
+      if (isDnf) cls.push('is-dnf');
+      const posLabel = isDnf ? 'DNF' : `P${pStr}`;
+      return `<div class="${cls.join(' ')}">
+        <div class="fp-pos">${posLabel}</div>
+        <div class="fp-name">${rr.short_name.toUpperCase()}</div>
+        <div class="fp-pts">${rr.points} pts</div>
+      </div>`;
+    }).join('');
+  } else {
+    row.innerHTML = '<div class="sl-form-pill"><div class="fp-pos">—</div><div class="fp-name">no rounds yet</div></div>';
+  }
+}
+
+function updateSpotlightLiveStats(data, cfg) {
+  const code = cfg.driverCode;
+  const drv = (data.drivers || []).find(d => d.code === code);
+  if (!drv) return;
+  const posEl = document.querySelector('.sl-stats .sl-stat:first-child .ss-value');
+  const winsEl = document.querySelector('.sl-stats .sl-stat:nth-child(2) .ss-value');
+  if (posEl) posEl.innerHTML = `P${drv.pos}<small>${drv.pts} pts</small>`;
+  if (winsEl) {
+    const rounds = (data.schedule || []).filter(r => r.status === 'done').length;
+    winsEl.innerHTML = `${drv.wins != null ? drv.wins : '—'}<small>${rounds} rounds</small>`;
+  }
+}
+
+async function fetchSpotlightExtras(code) {
+  if (__spotlightFetch) return __spotlightFetch;
+  __spotlightFetch = (async () => {
+    try {
+      const r = await fetch(`/api/driver/${encodeURIComponent(code)}`);
+      if (!r.ok) throw new Error('http ' + r.status);
+      const info = await r.json();
+      __spotlightCache = { code, info };
+      __spotlightCacheAt = Date.now();
+      if (__spotlightDriver === code) applySpotlightExtras(info);
+    } catch {
+      /* leave placeholders */
+    } finally {
+      __spotlightFetch = null;
+    }
+  })();
+  return __spotlightFetch;
+}
+
+function wireSpotlightActions() {
+  const shareBtn = document.getElementById('spotShare');
+  if (shareBtn) shareBtn.onclick = shareMyCard;
+  const bellBtn = document.getElementById('spotBell');
+  const bellLabel = document.getElementById('spotBellLabel');
+  const alreadySubbed = !!localStorage.getItem('pit-wall:push-subscribed');
+  if (alreadySubbed && bellLabel) bellLabel.textContent = "you're subscribed";
+  if (bellBtn) {
+    bellBtn.onclick = async () => {
+      bellBtn.disabled = true;
+      if (bellLabel) bellLabel.textContent = 'asking permission…';
+      const r = await subscribeToPush();
+      if (r.ok) {
+        if (bellLabel) bellLabel.textContent = "you're subscribed";
+      } else {
+        if (bellLabel) bellLabel.textContent = r.reason || 'failed · try again';
+        setTimeout(() => { if (bellLabel) bellLabel.textContent = 'race-day reminders'; bellBtn.disabled = false; }, 2200);
+      }
+    };
+  }
+}
+
 async function renderSpotlight(data, cfg) {
   const body = $('spotlightBody');
   const meta = $('spotlightMeta');
   if (!body) return;
   if (!cfg || !cfg.driverCode) {
+    __spotlightDriver = null;
     body.innerHTML = '<div class="sl-empty"><p>No driver picked yet. <button type="button" class="sl-cta" id="spotlightCta">choose one →</button></p></div>';
     const cta = document.getElementById('spotlightCta');
     if (cta) cta.addEventListener('click', () => showOnboarding(loadConfig()));
-    meta.textContent = 'pick a driver to unlock';
+    if (meta) meta.textContent = 'pick a driver to unlock';
     return;
   }
+
   const code = cfg.driverCode;
+  if (__spotlightDriver === code && body.querySelector('.sl-driver-block')) {
+    updateSpotlightLiveStats(data, cfg);
+    if (meta) {
+      const drv = (data.drivers || []).find(d => d.code === code);
+      const teamDisp = teamDisplayName(drv && drv.team_id, drv && drv.team_name);
+      meta.textContent = `${teamDisp.toUpperCase()} · live season + career numbers`;
+    }
+    return;
+  }
+
+  __spotlightDriver = code;
   const drv = (data.drivers || []).find(d => d.code === code);
   const fallback = DEFAULT_DRIVERS.find(([c]) => c === code) || null;
   const num   = drv ? drv.permanent_number : (fallback ? fallback[3] : '');
@@ -1518,6 +1647,7 @@ async function renderSpotlight(data, cfg) {
   const pts   = drv ? drv.pts : '—';
   const pos   = drv ? drv.pos : '—';
   const wins  = drv ? drv.wins : '—';
+  const rounds = (data.schedule || []).filter(r => r.status === 'done').length;
 
   body.innerHTML = `
     <div class="sl-left">
@@ -1545,63 +1675,20 @@ async function renderSpotlight(data, cfg) {
     <div class="sl-right">
       <div class="sl-stats">
         <div class="sl-stat"><div class="ss-label">Standing</div><div class="ss-value">P${pos}<small>${pts} pts</small></div></div>
-        <div class="sl-stat"><div class="ss-label">Season Wins</div><div class="ss-value">${wins}<small>${(data.schedule||[]).filter(r=>r.status==='done').length} rounds</small></div></div>
+        <div class="sl-stat"><div class="ss-label">Season Wins</div><div class="ss-value">${wins}<small>${rounds} rounds</small></div></div>
         <div class="sl-stat" id="ssCareerWins"><div class="ss-label">Career Wins</div><div class="ss-value">—</div></div>
         <div class="sl-stat" id="ssCareerPoles"><div class="ss-label">Career Poles</div><div class="ss-value">—</div></div>
       </div>
     </div>
   `;
-  // wire actions
-  const shareBtn = document.getElementById('spotShare');
-  if (shareBtn) shareBtn.addEventListener('click', shareMyCard);
-  const bellBtn = document.getElementById('spotBell');
-  const bellLabel = document.getElementById('spotBellLabel');
-  const alreadySubbed = !!localStorage.getItem('pit-wall:push-subscribed');
-  if (alreadySubbed && bellLabel) bellLabel.textContent = "you're subscribed";
-  if (bellBtn) bellBtn.addEventListener('click', async () => {
-    bellBtn.disabled = true;
-    if (bellLabel) bellLabel.textContent = 'asking permission…';
-    const r = await subscribeToPush();
-    if (r.ok) {
-      if (bellLabel) bellLabel.textContent = "you're subscribed";
-    } else {
-      if (bellLabel) bellLabel.textContent = r.reason || 'failed · try again';
-      setTimeout(() => { if (bellLabel) bellLabel.textContent = 'race-day reminders'; bellBtn.disabled = false; }, 2200);
-    }
-  });
-  meta.textContent = `${teamDisp.toUpperCase()} · live season + career numbers`;
+  wireSpotlightActions();
+  if (meta) meta.textContent = `${teamDisp.toUpperCase()} · live season + career numbers`;
 
-  // Fetch career + recent form
-  try {
-    const r = await fetch(`/api/driver/${encodeURIComponent(code)}?t=${Date.now()}`);
-    if (!r.ok) throw new Error('http ' + r.status);
-    const info = await r.json();
-    const cwEl = document.querySelector('#ssCareerWins .ss-value');
-    const cpEl = document.querySelector('#ssCareerPoles .ss-value');
-    if (cwEl) cwEl.innerHTML = `${info.career && info.career.wins != null ? info.career.wins : '—'}<small>all-time</small>`;
-    if (cpEl) cpEl.innerHTML = `${info.career && info.career.poles != null ? info.career.poles : '—'}<small>all-time</small>`;
-
-    const row = document.getElementById('spotFormRow');
-    if (row && info.season_results && info.season_results.length) {
-      row.innerHTML = info.season_results.map(rr => {
-        const pStr = rr.pos || '—';
-        const isDnf = rr.status && rr.status !== 'Finished' && !/^\+\d/.test(rr.status) && !/Lap/i.test(rr.status);
-        const cls = ['sl-form-pill'];
-        if (['1','2','3'].includes(String(pStr))) cls.push('is-podium');
-        if (isDnf) cls.push('is-dnf');
-        const posLabel = isDnf ? 'DNF' : `P${pStr}`;
-        return `<div class="${cls.join(' ')}">
-          <div class="fp-pos">${posLabel}</div>
-          <div class="fp-name">${rr.short_name.toUpperCase()}</div>
-          <div class="fp-pts">${rr.points} pts</div>
-        </div>`;
-      }).join('');
-    } else if (row) {
-      row.innerHTML = '<div class="sl-form-pill"><div class="fp-pos">—</div><div class="fp-name">no rounds yet</div></div>';
-    }
-  } catch (e) {
-    // leave the "—" placeholders if the lookup failed
+  if (__spotlightCache && __spotlightCache.code === code && Date.now() - __spotlightCacheAt < SPOTLIGHT_CACHE_MS) {
+    applySpotlightExtras(__spotlightCache.info);
+    return;
   }
+  fetchSpotlightExtras(code);
 }
 
 /* ================================================================
@@ -1663,6 +1750,10 @@ function toMs(t) {
   return mins * 60000 + secs * 1000 + ms;
 }
 function applyConfig(cfg) {
+  if (cfg && cfg.driverCode !== __spotlightDriver) {
+    __spotlightCache = null;
+    __spotlightCacheAt = 0;
+  }
   paintHeader(cfg);
   if (window.__latestData) renderAll(window.__latestData, cfg);
 }
@@ -1939,6 +2030,7 @@ function setupNavDrawer() {
   setupTipChip();
   setupThanksPopup();
   setupNavDrawer();
+  setupCalendarDrag();
   renderChangelog();
   startLivePoll();
   startTelemetryPoll(cfg);

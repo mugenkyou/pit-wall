@@ -509,7 +509,7 @@ section, .hero, .race-hero, .cal-section, .main-section, .race-extra-section,
 .cal-strip-wrap {
   position: relative;
   overflow: hidden;
-  border: 2px solid var(--ink);
+  border: 1px solid var(--rule-light);
   background: var(--paper-2);
 }
 
@@ -533,10 +533,17 @@ section, .hero, .race-hero, .cal-section, .main-section, .race-extra-section,
   grid-auto-flow: column;
   grid-auto-columns: minmax(132px, 1fr);
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
 }
-.cal-strip::-webkit-scrollbar { height: 4px; }
-.cal-strip::-webkit-scrollbar-thumb { background: var(--ink); }
+.cal-strip::-webkit-scrollbar { display: none; }
+.cal-strip.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+}
 
 .cal-round {
   padding: 20px 16px 18px;
@@ -3075,6 +3082,16 @@ body.colo-open { overflow: hidden; }
 }
 @media (max-width: 720px) { .onb-stage { padding: 72px 16px 28px; } }
 
+#onbStep2 {
+  padding-top: clamp(100px, 16vh, 128px);
+}
+#onbStep2 .onb-eyebrow { margin-bottom: 22px; }
+#onbStep2 .onb-headline { margin-top: 8px; margin-bottom: 18px; }
+#onbStep2 .onb-sub { margin-bottom: 28px; }
+@media (max-width: 720px) {
+  #onbStep2 { padding-top: clamp(88px, 14vh, 108px); }
+}
+
 .onb-eyebrow {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11.5px; letter-spacing: .22em; text-transform: lowercase;
@@ -3300,15 +3317,20 @@ body.colo-open { overflow: hidden; }
 }
 .onb-drv:hover .drv-num { transform: translateX(2px); }
 .onb-drv.selected {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--carbon-3);
+  border-color: rgba(255, 255, 255, 0.1);
+  border-left-color: var(--drv-color);
   border-left-width: 12px;
   transform: translateY(-1px);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
-.onb-drv.selected .drv-num { color: var(--drv-color); }
+.onb-drv.selected::before {
+  transform: translateX(0);
+  opacity: 0.14;
+}
+.onb-drv.selected .drv-num { color: var(--drv-color); opacity: 1; }
 .onb-drv.selected .drv-name { color: var(--ink); }
-.onb-drv.selected .drv-team { color: rgba(255,255,255,0.55); }
+.onb-drv.selected .drv-team { color: rgba(255, 255, 255, 0.55); }
 .onb-drv.selected .drv-code { color: var(--drv-color); }
 .onb-drv.selected::after {
   content: '✓'; position: absolute; top: 12px; right: 14px;
