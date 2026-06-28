@@ -26,11 +26,27 @@ Built by [Sachin Patel](https://www.linkedin.com/in/sachinskyte/) ([@mugenkyou](
 - `/api/telemetry`
 - `/api/schedule`
 
-## Run
+## Run locally
+
+This app runs on [Cloudflare Workers](https://developers.cloudflare.com/workers/). Use [Wrangler](https://developers.cloudflare.com/workers/wrangler/) to serve the worker and static assets from `public/` in dev.
 
 ```bash
 npm install
+npx wrangler dev
+```
+
+Or use the npm script (same command):
+
+```bash
 npm run dev
+```
+
+Wrangler starts a local server (default: [http://localhost:8787](http://localhost:8787)) with the API routes and frontend. Open that URL in your browser to use the dashboard.
+
+To deploy to Cloudflare:
+
+```bash
+npm run deploy
 ```
 
 ## License
