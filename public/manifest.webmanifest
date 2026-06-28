@@ -1,0 +1,10 @@
+{
+  "name": "The Pit Wall",
+  "short_name": "Pit Wall",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#27f4d2",
+  "description": "Live F1 2026 dashboard"
+}
