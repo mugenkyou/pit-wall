@@ -1956,12 +1956,11 @@ body.colo-open { overflow: hidden; }
 
 /* mobile guards · belt and suspenders across every section */
 @media (max-width: 600px) {
-  .hero-title { font-size: clamp(72px, 14vw, 120px); }
   .race-name { font-size: clamp(36px, 9vw, 56px); }
   .driver-row, .con-row { min-width: 0; }
   .col, .col-head { min-width: 0; }
-  .driver-info, .con-name { min-width: 0; overflow: hidden; }
-  .main-grid { gap: 26px; }
+  .driver-info, .con-name { min-width: 0; }
+  .main-grid { gap: 0; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
 }
 
@@ -3316,4 +3315,298 @@ body.colo-open { overflow: hidden; }
   100% { transform: rotate(180deg) translateY(100%); }
 }
 @media (max-width: 720px) { .onb-rail { display: none; } }
+
+/* ================================================================
+   MOBILE UI POLISH · responsive layout without changing desktop
+   ================================================================ */
+
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .live-banner {
+    padding-top: max(9px, env(safe-area-inset-top));
+  }
+  .footer-wrap {
+    padding-bottom: max(40px, calc(16px + env(safe-area-inset-bottom)));
+  }
+  .onb-edit {
+    left: max(18px, env(safe-area-inset-left));
+    bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  .tip-chip {
+    right: max(18px, env(safe-area-inset-right));
+    bottom: max(18px, env(safe-area-inset-bottom));
+  }
+  .thanks-pop {
+    bottom: max(90px, calc(72px + env(safe-area-inset-bottom)));
+  }
+  .colophon-modal {
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+}
+
+@media (max-width: 768px) {
+  .ontrack-section,
+  .next3-section,
+  .spotlight-section,
+  .quali-section,
+  .livegrid-section,
+  .race-extra-section,
+  .golive-section,
+  .cal-section,
+  .main-section {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .livegrid-body {
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  }
+  .livegrid-head {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .livegrid-head .lg-meta {
+    font-size: 10px;
+    letter-spacing: .14em;
+    line-height: 1.4;
+  }
+  .golive-section {
+    padding-bottom: 32px;
+  }
+  .next3-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .next3-meta {
+    font-size: 10px;
+    line-height: 1.45;
+  }
+  .quali-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .quali-body {
+    min-width: 520px;
+  }
+  .race-stats {
+    flex-wrap: wrap;
+    gap: 20px 28px;
+  }
+  .footer {
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero, .race-hero, .cal-section, .main-section, .stats-ribbon, .footer-wrap {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+  .hero { padding-top: 28px; }
+  .hero-title .line1, .hero-title .line2 {
+    font-size: clamp(40px, 12.5vw, 64px);
+    line-height: 1.05;
+  }
+  .hero-sub {
+    font-size: 11px;
+    letter-spacing: .16em;
+    line-height: 1.5;
+  }
+  .brand-eyebrow { font-size: 10px; gap: 12px; }
+  .greeting, .dateline { font-size: 13px; line-height: 1.45; }
+
+  .race-block { padding: 24px 16px 26px; margin-top: 12px; }
+  .race-grid { gap: 24px; }
+  .race-name { font-size: clamp(28px, 8.5vw, 44px); line-height: 1.02; }
+  .countdown { gap: 6px; }
+  .cd-cell { padding: 14px 4px 12px; }
+  .cd-num { font-size: clamp(28px, 8vw, 36px); }
+  .cd-label { font-size: 10px; margin-top: 8px; }
+
+  .stats-grid { grid-template-columns: 1fr; }
+  .stat {
+    padding: 22px 18px 18px;
+    border-right: none !important;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .stat:first-child { border-top: none; }
+  .stat-label { font-size: 10px; margin-bottom: 10px; }
+  .stat-sub { font-size: 14px; line-height: 1.45; }
+
+  .col-head { padding: 18px 16px 16px; }
+  .col-name { font-size: clamp(20px, 6vw, 24px); }
+  .col-sub { font-size: 10px; line-height: 1.45; }
+
+  .driver-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 16px;
+    align-items: start;
+  }
+  .driver-row:hover { transform: none; }
+  .driver-row.leader::after { display: none; }
+  .driver-line {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .driver-name {
+    font-size: 15px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .driver-team {
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+  .driver-pts { font-size: 18px; }
+  .driver-pts-sub { font-size: 10px; }
+
+  .con-row { padding: 12px 16px; }
+  .con-top {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: start;
+  }
+  .con-name { font-size: 14px; line-height: 1.25; overflow-wrap: anywhere; }
+  .con-engine, .con-heritage { font-size: 11px; line-height: 1.4; }
+  .con-pts { font-size: 16px; }
+
+  .podium-block { padding: 18px 16px; }
+  .pod-row {
+    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 4px 10px;
+    padding: 10px;
+  }
+  .pod-time {
+    grid-column: 2;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .pod-driver-name { font-size: 14px; line-height: 1.25; }
+  .pod-driver-team { font-size: 11px; line-height: 1.4; }
+
+  .news-item { padding: 14px 16px; }
+  .news-headline { font-size: 15px; line-height: 1.35; }
+  .news-body { font-size: 14px; line-height: 1.55; }
+
+  .ontrack-section { padding: 16px 14px 4px; }
+  .ontrack-card { padding: 14px 14px 12px; }
+  .ontrack-head {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+    font-size: 10px;
+    line-height: 1.45;
+  }
+  .ontrack-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .cal-round { min-height: 132px; padding: 16px 12px 14px; }
+  .cal-flag-name { font-size: 15px; line-height: 1.15; }
+
+  .f-colophon-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 10px;
+  }
+  .f-colophon-row { padding-top: 12px; }
+
+  .colo-close {
+    width: 44px;
+    height: 44px;
+    top: 10px;
+    right: 10px;
+  }
+  .colo-links { gap: 10px; }
+  .colo-btn {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 11px;
+  }
+
+  .onb-edit, .tip-chip {
+    min-height: 44px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+  .thanks-pop .tp-btn {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .thanks-pop .tp-close {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .thanks-pop .tp-actions {
+    flex-direction: column;
+  }
+
+  .live-indicator {
+    top: max(50px, calc(44px + env(safe-area-inset-top)));
+    max-width: calc(100vw - 20px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  }
+
+  .pwa-chip {
+    max-width: calc(100vw - 24px);
+  }
+  .pwa-ios {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    max-width: none;
+  }
+
+  .spotlight-card { padding: 20px 16px 18px; }
+  .sl-name { font-size: clamp(26px, 8vw, 32px); line-height: 1.05; }
+  .sl-meta-row { font-size: 12px; line-height: 1.45; }
+  .sl-form-pill { min-width: 68px; padding: 8px 10px; }
+  .sl-form-pill .fp-name { font-size: 10px; }
+
+  .weather-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .stint-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .stint-track { width: 100%; min-width: 0; }
+
+  .sl-actions {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .sl-action {
+    min-height: 44px;
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .hero-title .line1, .hero-title .line2 { font-size: clamp(36px, 11.5vw, 52px); }
+  .driver-row { padding: 11px 12px; }
+  .con-row { padding: 11px 12px; }
+  .next3-card { padding: 14px 14px 12px; }
+  .next3-card .n3-name { font-size: 19px; }
+  .colo-podium { grid-template-columns: 1fr; }
+  .colo-p-any { grid-column: 1; }
+}
 
