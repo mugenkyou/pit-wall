@@ -39,6 +39,7 @@ const TEAM_COLOR = {
   red_bull:'var(--redbull)', williams:'var(--williams)', haas:'var(--haas)',
   alpine:'var(--alpine)', sauber:'var(--audi)', audi:'var(--audi)',
   rb:'var(--racingbulls)', racing_bulls:'var(--racingbulls)', alphatauri:'var(--racingbulls)',
+  rb_f1_team:'var(--racingbulls)', visa_cash_app_rb:'var(--racingbulls)',
   aston_martin:'var(--aston)', cadillac:'var(--cadillac)',
 };
 const TEAM_DARK = { mercedes:true, haas:true, williams:true, racing_bulls:true, rb:true };
@@ -47,6 +48,7 @@ const TEAM_DISPLAY = {
   red_bull:'Red Bull Racing', williams:'Williams', haas:'Haas F1',
   alpine:'Alpine', sauber:'Audi', audi:'Audi',
   rb:'Racing Bulls', racing_bulls:'Racing Bulls', alphatauri:'Racing Bulls',
+  rb_f1_team:'Racing Bulls', visa_cash_app_rb:'Racing Bulls',
   aston_martin:'Aston Martin', cadillac:'Cadillac',
 };
 const TEAM_ENGINE = {
@@ -54,6 +56,7 @@ const TEAM_ENGINE = {
   red_bull:'Red Bull Ford', williams:'Mercedes PU', haas:'Ferrari PU',
   alpine:'Mercedes PU', sauber:'Audi PU', audi:'Audi PU',
   rb:'Red Bull Ford', racing_bulls:'Red Bull Ford', alphatauri:'Red Bull Ford',
+  rb_f1_team:'Red Bull Ford', visa_cash_app_rb:'Red Bull Ford',
   aston_martin:'Honda PU', cadillac:'Ferrari PU',
 };
 
@@ -292,9 +295,7 @@ function buildWinnersMap(data) {
    ================================================================ */
 function renderDrivers(data, cfg) {
   const list = $('driversList');
-  const drivers = (data.last_race && Array.isArray(data.last_race.results) && data.last_race.results.length)
-    ? data.last_race.results.slice(0, 10)
-    : (data.drivers || []).slice(0, 10);
+  const drivers = (data.drivers || []).slice(0, 10);
   if (!drivers.length) { list.innerHTML = ''; return; }
   $('driversSub').textContent = `Top ${drivers.length} · ${(data.schedule || []).filter(r=>r.status==='done').length} rounds in`;
   const base = window.__firstRender ? 0.4 : 0;
@@ -305,16 +306,18 @@ function renderDrivers(data, cfg) {
     const isFav = cfg && cfg.driverCode && d.code === cfg.driverCode;
     const leader = i === 0 ? ' leader' : '';
     const fav = isFav ? ' is-fav' : '';
-    const teamDisp = teamDisplayName(d.team_id, d.team_name);
+    const teamDisp = teamDisplayName(d.team_id, d.team_name || d.team);
     const nat = NAT3[d.nationality] || (d.nationality || '').slice(0,3).toUpperCase();
-    const gap = (d.gap === null || d.gap === 0) ? '' : ` · <span class="gap">${d.gap > 0 ? '+' : ''}${d.gap}</span>`;
+    const pts = d.pts ?? d.points ?? 0;
+    const gapVal = d.gap;
+    const gap = (gapVal == null || gapVal === 0) ? '' : ` · <span class="gap">${gapVal > 0 ? '+' : ''}${gapVal}</span>`;
     return `<div class="driver-row${leader}${fav}" style="--team-color: ${colour}; animation-delay:${(base + step*i).toFixed(2)}s;">
       <div class="driver-pos">${pad(d.pos)}</div>
       <div class="driver-info">
         <div class="driver-line"><span class="driver-name">${d.short_name}</span><span class="driver-code" style="background:${colour};${dark}">${d.code || ''}</span></div>
         <div class="driver-team">${teamDisp} · ${nat}${gap}</div>
       </div>
-      <div class="driver-pts-wrap"><div class="driver-pts">${d.pts}</div><div class="driver-pts-sub">pts</div></div>
+      <div class="driver-pts-wrap"><div class="driver-pts">${pts}</div><div class="driver-pts-sub">pts</div></div>
     </div>`;
   }).join('');
 }

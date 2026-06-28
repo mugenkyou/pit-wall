@@ -29,7 +29,10 @@ function getTeamId(constructorName) {
     "Haas F1 Team": "haas",
     "Alpine F1 Team": "alpine",
     Audi: "sauber",
-    "Racing Bulls": "rb",
+    "Racing Bulls": "racing_bulls",
+    RB: "racing_bulls",
+    "RB F1 Team": "racing_bulls",
+    "Visa Cash App RB": "racing_bulls",
     "Aston Martin": "aston_martin",
     Cadillac: "cadillac",
   };
@@ -42,11 +45,10 @@ function getDriverDisplayName(driver) {
   return `${driver?.givenName || ""} ${driver?.familyName || ""}`.trim();
 }
 
-function normalizeDriverStanding(entry, idx) {
+function normalizeDriverStanding(entry, idx, leaderPoints = 0) {
   const driver = entry?.Driver || {};
   const constructor = entry?.Constructors?.[0] || {};
   const points = parseInt(entry?.points || 0, 10);
-  const leaderPoints = idx === 0 ? points : 0;
 
   return {
     pos: idx + 1,
@@ -60,7 +62,7 @@ function normalizeDriverStanding(entry, idx) {
     team_id: getTeamId(constructor.name || ""),
     team_name: constructor.name || "—",
     nationality: driver.nationality || "—",
-    gap: idx === 0 ? null : String(leaderPoints - points),
+    gap: idx === 0 ? null : leaderPoints - points,
     pts: points,
     wins: parseInt(entry?.wins || 0, 10),
   };
@@ -122,6 +124,7 @@ function normalizeRaceResult(result, positionIndex = 0) {
     driver:
       `${result?.Driver?.givenName || ""} ${result?.Driver?.familyName || ""}`.trim(),
     team: result?.Constructor?.name || "—",
+    team_name: result?.Constructor?.name || "—",
     team_id: getTeamId(result?.Constructor?.name || ""),
     nationality: result?.Driver?.nationality || "—",
     q1: result?.Q1 || null,
@@ -130,6 +133,7 @@ function normalizeRaceResult(result, positionIndex = 0) {
     best: result?.Q3 || result?.Q2 || result?.Q1 || null,
     grid: result?.grid || null,
     points: parseFloat(result?.points || 0),
+    pts: parseFloat(result?.points || 0),
     status: result?.status || "Finished",
     time: result?.Time?.time || result?.Time?.millis || null,
     fastest_lap: result?.FastestLap?.Time?.time || null,
@@ -233,9 +237,11 @@ export async function getDriverStandings(season = "current") {
     `${getJolpicaUrl(cleanSeason)}/driverstandings.json`,
   );
   const list = payload?.MRData?.StandingsTable?.StandingsLists?.[0];
+  const standings = list?.DriverStandings || [];
+  const leaderPts = parseInt(standings[0]?.points || 0, 10);
   return {
     season: list?.season || cleanSeason,
-    drivers: (list?.DriverStandings || []).map(normalizeDriverStanding),
+    drivers: standings.map((entry, idx) => normalizeDriverStanding(entry, idx, leaderPts)),
   };
 }
 
