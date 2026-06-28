@@ -879,6 +879,7 @@ function renderAll(data, cfg) {
   renderSpotlight(data, cfg);
   renderQualifying(data);
   renderStatsRibbon(data, cfg);
+  fetchTelemetry(cfg);
   hideSplash();
   if (window.__firstRender) {
     setTimeout(() => { window.__firstRender = false; }, 3500);
@@ -898,6 +899,7 @@ async function fetchLive() {
     if (!sec) return;
     if (data.live) {
       sec.style.display = 'block';
+      updateNavLiveItems(true);
       const lbl = $('livegridLabel');
       const meta = $('livegridMeta');
       if (lbl) lbl.textContent = `${data.session.type} · ${data.session.country}`;
@@ -920,6 +922,7 @@ async function fetchLive() {
       } else if (rc) rc.innerHTML = '';
     } else {
       sec.style.display = 'none';
+      updateNavLiveItems(false);
     }
   } catch {}
 }
@@ -1664,6 +1667,245 @@ function applyConfig(cfg) {
   if (window.__latestData) renderAll(window.__latestData, cfg);
 }
 
+function updateNavLiveItems(show) {
+  document.querySelectorAll('[data-nav-live-item]').forEach(li => {
+    li.hidden = !show;
+  });
+}
+
+/* ================================================================
+   TELEMETRY · OpenF1 car data for favourite driver
+   ================================================================ */
+let telemetryTimer = null;
+
+function driverNumberFromConfig(cfg) {
+  if (!cfg || !cfg.driverCode) return null;
+  const row = DEFAULT_DRIVERS.find(([code]) => code === cfg.driverCode);
+  return row ? row[3] : null;
+}
+
+function telemetryUnavailable(body, meta) {
+  if (body) {
+    body.innerHTML = '<p class="telemetry-empty">Telemetry is unavailable for the current session.</p>';
+  }
+  if (meta) meta.textContent = 'no active session';
+}
+
+async function fetchTelemetry(cfg) {
+  const body = $('telemetryBody');
+  const meta = $('telemetryMeta');
+  if (!body) return;
+
+  try {
+    const num = driverNumberFromConfig(cfg);
+    const qs = num ? `?driver_number=${encodeURIComponent(num)}` : '';
+    const r = await fetch(`/api/telemetry${qs}`);
+    if (!r.ok) throw new Error('unavailable');
+    const data = await r.json();
+    const rows = data && Array.isArray(data.telemetry) ? data.telemetry : null;
+    if (!rows || !rows.length) {
+      telemetryUnavailable(body, meta);
+      return;
+    }
+    const latest = rows[rows.length - 1];
+    const label = num && cfg && cfg.driverCode ? `#${num} · ${cfg.driverCode}` : 'latest sample';
+    if (meta) meta.textContent = label;
+
+    const speed = latest.speed != null ? Math.round(latest.speed) : '—';
+    const rpm = latest.rpm != null ? Math.round(latest.rpm) : '—';
+    const gear = latest.n_gear != null ? latest.n_gear : '—';
+    const throttle = latest.throttle != null ? Math.round(latest.throttle) : '—';
+    const brake = latest.brake != null ? (latest.brake > 0 ? 'ON' : 'OFF') : '—';
+    const drs = latest.drs != null ? (latest.drs >= 10 ? 'OPEN' : 'CLOSED') : '—';
+
+    body.innerHTML = `
+      <div class="telemetry-stats">
+        <div class="telemetry-stat"><div class="ts-label">Speed</div><div class="ts-value">${speed}<small>km/h</small></div></div>
+        <div class="telemetry-stat"><div class="ts-label">RPM</div><div class="ts-value">${rpm}<small>rpm</small></div></div>
+        <div class="telemetry-stat"><div class="ts-label">Gear</div><div class="ts-value">${gear}</div></div>
+        <div class="telemetry-stat"><div class="ts-label">Throttle</div><div class="ts-value">${throttle}<small>%</small></div></div>
+        <div class="telemetry-stat"><div class="ts-label">Brake</div><div class="ts-value">${brake}</div></div>
+        <div class="telemetry-stat"><div class="ts-label">DRS</div><div class="ts-value">${drs}</div></div>
+      </div>`;
+  } catch {
+    telemetryUnavailable(body, meta);
+  }
+}
+
+function startTelemetryPoll(cfg) {
+  if (telemetryTimer) clearInterval(telemetryTimer);
+  fetchTelemetry(cfg);
+  telemetryTimer = setInterval(() => fetchTelemetry(loadConfig()), 15 * 1000);
+}
+
+/* ================================================================
+   NAVIGATION DRAWER
+   ================================================================ */
+function setupNavDrawer() {
+  const toggle = $('navToggle');
+  const drawer = $('navDrawer');
+  const backdrop = $('navBackdrop');
+  if (!toggle || !drawer || !backdrop) return;
+
+  const MOBILE_BP = 1024;
+  const navItems = drawer.querySelectorAll('.nav-item');
+  const sectionIds = Array.from(drawer.querySelectorAll('[data-nav]'))
+    .map(el => el.getAttribute('data-nav'))
+    .filter(Boolean);
+  let releaseFocus = null;
+  let lockedScrollY = 0;
+
+  function isMobile() { return window.innerWidth < MOBILE_BP; }
+
+  function getScrollOffset() {
+    let offset = 12;
+    const ticker = document.querySelector('.ticker-wrap');
+    if (ticker) offset += ticker.offsetHeight;
+    const banner = $('liveBanner');
+    if (banner && banner.classList.contains('show')) offset += banner.offsetHeight;
+    return offset;
+  }
+
+  function lockPageScroll() {
+    lockedScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add('nav-scroll-lock');
+    document.body.style.top = `-${lockedScrollY}px`;
+  }
+
+  function unlockPageScroll() {
+    document.body.classList.remove('nav-scroll-lock');
+    document.body.style.top = '';
+    window.scrollTo(0, lockedScrollY);
+  }
+
+  function setActive(id) {
+    navItems.forEach(item => {
+      const target = item.getAttribute('data-nav');
+      item.classList.toggle('is-active', !!target && target === id);
+    });
+  }
+
+  function openDrawer() {
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'Close navigation');
+    drawer.hidden = false;
+    backdrop.hidden = false;
+    backdrop.setAttribute('aria-hidden', 'false');
+    lockPageScroll();
+    requestAnimationFrame(() => {
+      document.body.classList.add('nav-open');
+      const first = drawer.querySelector('li:not([hidden]) .nav-item') || drawer.querySelector('.nav-item');
+      if (first) first.focus();
+      releaseFocus = trapFocus(drawer);
+    });
+  }
+
+  function closeDrawer() {
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open navigation');
+    document.body.classList.remove('nav-open');
+    if (releaseFocus) { releaseFocus(); releaseFocus = null; }
+    unlockPageScroll();
+    toggle.focus({ preventScroll: true });
+    setTimeout(() => {
+      if (!document.body.classList.contains('nav-open')) {
+        drawer.hidden = true;
+        backdrop.hidden = true;
+        backdrop.setAttribute('aria-hidden', 'true');
+      }
+    }, isMobile() ? 300 : 250);
+  }
+
+  function trapFocus(container) {
+    const focusable = Array.from(container.querySelectorAll(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(el => !el.closest('li[hidden]'));
+    if (!focusable.length) return () => {};
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    function onKeyDown(e) {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    container.addEventListener('keydown', onKeyDown);
+    return () => container.removeEventListener('keydown', onKeyDown);
+  }
+
+  function scrollToSection(id) {
+    let el = document.getElementById(id);
+    if (id === 'livegridRc' || id === 'livegridSection') {
+      const sec = $('livegridSection');
+      if (sec && sec.style.display === 'none') {
+        el = $('navHome');
+        id = el ? el.id : id;
+      } else if (id === 'livegridRc' && (!el || !el.offsetHeight)) {
+        el = sec || el;
+        id = el ? el.id : id;
+      }
+    }
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - getScrollOffset();
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    setActive(id);
+  }
+
+  toggle.addEventListener('click', () => {
+    if (document.body.classList.contains('nav-open')) closeDrawer();
+    else openDrawer();
+  });
+
+  backdrop.addEventListener('click', closeDrawer);
+
+  drawer.addEventListener('click', (e) => {
+    const item = e.target.closest('.nav-item');
+    if (!item) return;
+    const action = item.getAttribute('data-action');
+    if (action === 'credits') {
+      e.preventDefault();
+      closeDrawer();
+      const openBtn = $('openColophon');
+      if (openBtn) openBtn.click();
+      return;
+    }
+    const navId = item.getAttribute('data-nav');
+    if (navId) {
+      e.preventDefault();
+      closeDrawer();
+      requestAnimationFrame(() => scrollToSection(navId));
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('nav-open')) {
+      e.preventDefault();
+      closeDrawer();
+    }
+  });
+
+  const sections = sectionIds
+    .map(sid => document.getElementById(sid))
+    .filter(Boolean);
+  if (sections.length && 'IntersectionObserver' in window) {
+    const ratios = new Map();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => ratios.set(entry.target.id, entry.intersectionRatio));
+      let bestId = null;
+      let bestRatio = 0;
+      ratios.forEach((ratio, sid) => {
+        if (ratio > bestRatio) { bestRatio = ratio; bestId = sid; }
+      });
+      if (bestId && bestRatio > 0) setActive(bestId);
+    }, { rootMargin: '-18% 0px -58% 0px', threshold: [0, 0.15, 0.35, 0.55, 0.75, 1] });
+    sections.forEach(sec => observer.observe(sec));
+  }
+}
+
 /* ================================================================
    BOOTSTRAP
    ================================================================ */
@@ -1696,8 +1938,10 @@ function applyConfig(cfg) {
   setupPWA();
   setupTipChip();
   setupThanksPopup();
+  setupNavDrawer();
   renderChangelog();
   startLivePoll();
+  startTelemetryPoll(cfg);
 
   // safety: if fetch never returns, kill splash after 4 s
   setTimeout(() => hideSplash(), 4000);
