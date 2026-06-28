@@ -143,7 +143,18 @@ const pad = (n) => String(n).padStart(2,'0');
 const titleCase = (s='') => s.charAt(0).toUpperCase() + s.slice(1);
 const firstName = (s='') => String(s || '').trim().split(/\s+/)[0] || '';
 const ord = (n) => { const s=['th','st','nd','rd'],v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); };
-function shortName(given, family) { return `${(given||'').charAt(0)}. ${family||''}`; }
+function shortName(given, family) { return `${(given||'').charAt(0)}. ${family||''}`.trim(); }
+function driverFormalName(d) {
+  if (!d) return '—';
+  if (d.given_name || d.family_name) return shortName(d.given_name, d.family_name);
+  const full = (d.name || d.driver || '').trim();
+  if (full) {
+    const parts = full.split(/\s+/);
+    if (parts.length >= 2) return shortName(parts[0], parts.slice(1).join(' '));
+    return full;
+  }
+  return d.code || d.short_name || '—';
+}
 function flagOf(country) { return FLAGS[country] || FLAGS[titleCase(country||'')] || COUNTRY_FALLBACK; }
 function teamColor(id) { return TEAM_COLOR[id] || '#888'; }
 function teamIsDark(id) { return TEAM_DARK[id] === true; }
@@ -314,7 +325,7 @@ function renderDrivers(data, cfg) {
     return `<div class="driver-row${leader}${fav}" style="--team-color: ${colour}; animation-delay:${(base + step*i).toFixed(2)}s;">
       <div class="driver-pos">${pad(d.pos)}</div>
       <div class="driver-info">
-        <div class="driver-line"><span class="driver-name">${d.short_name}</span><span class="driver-code" style="background:${colour};${dark}">${d.code || ''}</span></div>
+        <div class="driver-line"><span class="driver-name">${driverFormalName(d)}</span><span class="driver-code" style="background:${colour};${dark}">${d.code || ''}</span></div>
         <div class="driver-team">${teamDisp} · ${nat}${gap}</div>
       </div>
       <div class="driver-pts-wrap"><div class="driver-pts">${pts}</div><div class="driver-pts-sub">pts</div></div>
@@ -403,7 +414,7 @@ function renderNews(data) {
     const gap = (lead.pts - p2.pts);
     items.push({
       kicker: 'Championship',
-      title: `${lead.short_name} leads ${p2.short_name} by ${gap} ${gap === 1 ? 'point' : 'points'}`,
+      title: `${driverFormalName(lead)} leads ${driverFormalName(p2)} by ${gap} ${gap === 1 ? 'point' : 'points'}`,
       body: `${teamDisplayName(lead.team_id, lead.team_name)} versus ${teamDisplayName(p2.team_id, p2.team_name)} at the front of the order, ${lead.wins} win${lead.wins===1?'':'s'} this year.`,
     });
   }
@@ -489,7 +500,7 @@ function renderOnTrack(data, cfg) {
   legend.innerHTML = shown.map(d => {
     const col = teamColor(d.team_id);
     const isFav = favCode && d.code === favCode;
-    return `<span class="lg-item${isFav ? ' lg-fav' : ''}"><span class="lg-dot" style="--lg-color:${col};"></span>${d.code} &middot; ${d.short_name}${isFav ? ' &middot; yours' : ''}</span>`;
+    return `<span class="lg-item${isFav ? ' lg-fav' : ''}"><span class="lg-dot" style="--lg-color:${col};"></span>${d.code} &middot; ${driverFormalName(d)}${isFav ? ' &middot; yours' : ''}</span>`;
   }).join('');
 }
 
@@ -527,7 +538,7 @@ function renderStatsRibbon(data, cfg) {
   if (drivers.length >= 2) {
     const gap = drivers[0].pts - drivers[1].pts;
     $('statLeadBig').innerHTML = `<em>+${gap}</em> pts`;
-    $('statLeadSub').textContent = `${drivers[0].short_name} over ${drivers[1].short_name}`;
+    $('statLeadSub').textContent = `${driverFormalName(drivers[0])} over ${driverFormalName(drivers[1])}`;
   } else {
     $('statLeadBig').innerHTML = `<em>—</em>`;
     $('statLeadSub').textContent = 'Season opens soon';
@@ -535,7 +546,7 @@ function renderStatsRibbon(data, cfg) {
 
   if (lr && lr.fastest_lap && lr.fastest_lap.time) {
     $('statFLBig').textContent = lr.fastest_lap.time;
-    $('statFLSub').textContent = `${lr.fastest_lap.driver} · ${lr.short_name}`;
+    $('statFLSub').textContent = `${driverFormalName({ driver: lr.fastest_lap.driver, name: lr.fastest_lap.driver })} · ${lr.short_name}`;
   } else {
     $('statFLBig').textContent = '—';
     $('statFLSub').textContent = '—';
@@ -543,7 +554,7 @@ function renderStatsRibbon(data, cfg) {
 
   if (lr && lr.podium && lr.podium[0]) {
     const w = lr.podium[0];
-    $('statWinnerBig').textContent = w.driver_short || w.driver;
+    $('statWinnerBig').textContent = driverFormalName(w);
     $('statWinnerSub').textContent = `${teamDisplayName(w.team_id, w.team)} · ${lr.short_name}`;
   } else {
     $('statWinnerBig').textContent = '—';
@@ -554,7 +565,7 @@ function renderStatsRibbon(data, cfg) {
     const fav = drivers.find(d => d.code === cfg.driverCode);
     if (fav) {
       $('statFavBig').innerHTML = `P${fav.pos} <em>·</em> ${fav.pts} pts`;
-      $('statFavSub').textContent = `${fav.short_name} · ${teamDisplayName(fav.team_id, fav.team_name)}`;
+      $('statFavSub').textContent = `${driverFormalName(fav)} · ${teamDisplayName(fav.team_id, fav.team_name)}`;
     } else {
       $('statFavBig').innerHTML = `<em>${cfg.driverCode}</em>`;
       $('statFavSub').textContent = 'No data yet';
@@ -897,7 +908,7 @@ async function fetchLive() {
           <div class="lg-row" style="--lg-color:${g.team_color || '#888'};">
             <div class="lg-pos">${g.pos}</div>
             <div class="lg-stripe"></div>
-            <div><div class="lg-name">${g.short_name || g.code}</div><div class="lg-team">${g.team || ''}</div></div>
+            <div><div class="lg-name">${driverFormalName(g)}</div><div class="lg-team">${g.team || ''}</div></div>
           </div>
         `).join('');
       }
