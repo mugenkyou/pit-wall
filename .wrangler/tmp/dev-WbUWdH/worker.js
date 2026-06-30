@@ -149,9 +149,14 @@ function normalizePodium(results = []) {
 __name(normalizePodium, "normalizePodium");
 function normalizeRaceResult(result, positionIndex = 0) {
   return {
-    pos: parseInt(result?.position || result?.positionText || positionIndex + 1, 10),
+    pos: parseInt(
+      result?.position || result?.positionText || positionIndex + 1,
+      10
+    ),
     code: result?.Driver?.code || result?.Driver?.driverId || "---",
     driverId: result?.Driver?.driverId || result?.Driver?.code || "---",
+    number: result?.Driver?.permanentNumber || null,
+    permanent_number: result?.Driver?.permanentNumber || null,
     short_name: result?.Driver?.code || `${result?.Driver?.givenName || ""} ${result?.Driver?.familyName || ""}`.trim() || "---",
     driver: `${result?.Driver?.givenName || ""} ${result?.Driver?.familyName || ""}`.trim(),
     team: result?.Constructor?.name || "\u2014",
@@ -215,9 +220,13 @@ function selectRaceByRound(races, targetRound) {
   if (targetRound != null) {
     const round = Number.parseInt(targetRound, 10);
     if (Number.isFinite(round)) {
-      const exact = races.find((race) => parseInt(race?.round || 0, 10) === round);
+      const exact = races.find(
+        (race) => parseInt(race?.round || 0, 10) === round
+      );
       if (exact) return exact;
-      const eligible = races.filter((race) => parseInt(race?.round || 0, 10) <= round).sort((a, b) => parseInt(a?.round || 0, 10) - parseInt(b?.round || 0, 10));
+      const eligible = races.filter((race) => parseInt(race?.round || 0, 10) <= round).sort(
+        (a, b) => parseInt(a?.round || 0, 10) - parseInt(b?.round || 0, 10)
+      );
       if (eligible.length) return eligible[eligible.length - 1];
     }
   }
@@ -234,7 +243,10 @@ async function fetchAllRaces(url) {
     const payload = await fetchJson(pageUrl);
     const races = payload?.MRData?.RaceTable?.Races || [];
     allRaces.push(...races);
-    const pageTotal = Number.parseInt(payload?.MRData?.total || `${races.length}`, 10);
+    const pageTotal = Number.parseInt(
+      payload?.MRData?.total || `${races.length}`,
+      10
+    );
     if (Number.isFinite(pageTotal)) {
       total = pageTotal;
     } else if (!races.length) {
@@ -257,7 +269,9 @@ async function getDriverStandings(season = "current") {
   const leaderPts = parseInt(standings[0]?.points || 0, 10);
   return {
     season: list?.season || cleanSeason,
-    drivers: standings.map((entry, idx) => normalizeDriverStanding(entry, idx, leaderPts))
+    drivers: standings.map(
+      (entry, idx) => normalizeDriverStanding(entry, idx, leaderPts)
+    )
   };
 }
 __name(getDriverStandings, "getDriverStandings");
@@ -298,10 +312,18 @@ async function getDriverByCode(code, season = "current") {
   }
   const driverId = entry.driverId || clean;
   const displayName = getDriverDisplayName(entry);
-  const [seasonResultsResponse, allTimeResultsResponse, allTimeQualifyingResponse] = await Promise.allSettled([
+  const [
+    seasonResultsResponse,
+    allTimeResultsResponse,
+    allTimeQualifyingResponse
+  ] = await Promise.allSettled([
     fetchJson(`${getJolpicaUrl(cleanSeason)}/drivers/${driverId}/results.json`),
-    fetchAllRaces(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results.json`),
-    fetchAllRaces(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/qualifying.json`)
+    fetchAllRaces(
+      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results.json`
+    ),
+    fetchAllRaces(
+      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/qualifying.json`
+    )
   ]);
   const seasonResultRaces = seasonResultsResponse.status === "fulfilled" ? seasonResultsResponse.value?.MRData?.RaceTable?.Races || [] : [];
   const allTimeResultRaces = allTimeResultsResponse.status === "fulfilled" ? allTimeResultsResponse.value || [] : [];
@@ -318,7 +340,9 @@ async function getDriverByCode(code, season = "current") {
   }).sort((a, b) => b.round - a.round).slice(0, 5);
   const careerWins = allTimeResultRaces.reduce((count, race) => {
     const results = race?.Results || [];
-    return count + results.filter((result) => String(result?.position || result?.positionText || "") === "1").length;
+    return count + results.filter(
+      (result) => String(result?.position || result?.positionText || "") === "1"
+    ).length;
   }, 0);
   const careerPoles = allTimeQualifyingRaces.reduce((count, race) => {
     const qualifyingResults = race?.QualifyingResults || [];
@@ -387,60 +411,14 @@ async function getLatestRaceResults(season = "current", round = null) {
 __name(getLatestRaceResults, "getLatestRaceResults");
 async function getLatestQualifying(season = "current", round = null) {
   const cleanSeason = parseSeason(season);
-  const payload = round != null ? await fetchJson(`${getJolpicaUrl(cleanSeason)}/${round}/qualifying.json`) : await fetchJson(`${getJolpicaUrl(cleanSeason)}/qualifying.json`);
+  const payload = round != null ? await fetchJson(
+    `${getJolpicaUrl(cleanSeason)}/${round}/qualifying.json`
+  ) : await fetchJson(`${getJolpicaUrl(cleanSeason)}/qualifying.json`);
   const races = payload?.MRData?.RaceTable?.Races || [];
   const race = round != null ? races[0] || null : selectRaceByRound(races, round);
   return race ? normalizeQualifyingRace(race) : null;
 }
 __name(getLatestQualifying, "getLatestQualifying");
-
-// api/standings.js
-async function GET(request, env, ctx) {
-  try {
-    const url = new URL(request.url);
-    const season = url.searchParams.get("season") || "current";
-    const cleanSeason = parseSeason(season);
-    const [drivers, constructors, scheduleData] = await Promise.all([
-      getDriverStandings(cleanSeason),
-      getConstructorStandings(cleanSeason),
-      getSchedule(cleanSeason)
-    ]);
-    const schedule = scheduleData.schedule || [];
-    const nextRace = schedule.find((r) => r.status === "upcoming") || null;
-    const lastScheduledRace = [...schedule].reverse().find((r) => r.status === "done") || null;
-    const seasonForRound = scheduleData.season || cleanSeason;
-    const lastRace = lastScheduledRace ? await getLatestRaceResults(seasonForRound, lastScheduledRace.round) : null;
-    if (lastRace) {
-      lastRace.qualifying = await getLatestQualifying(
-        seasonForRound,
-        lastRace.round
-      );
-    }
-    return jsonResponse(
-      {
-        season: drivers.season,
-        drivers: drivers.drivers,
-        constructors,
-        schedule,
-        next_race: nextRace,
-        last_race: lastRace,
-        source: "Jolpica F1",
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-      },
-      { maxAgeSeconds: 300 }
-      // 5 minutes cache for standings
-    );
-  } catch (error) {
-    return errorResponse(error.message || "Unable to fetch standings", 502);
-  }
-}
-__name(GET, "GET");
-
-// api/live.js
-var live_exports = {};
-__export(live_exports, {
-  GET: () => GET2
-});
 
 // utils/openf1.js
 async function fetchJson2(url) {
@@ -453,6 +431,67 @@ async function fetchJson2(url) {
   return response.json();
 }
 __name(fetchJson2, "fetchJson");
+function parseSeason2(seasonParam) {
+  if (!seasonParam || seasonParam === "current") return "current";
+  const year = parseInt(seasonParam, 10);
+  if (isNaN(year) || year < 1950 || year > 2100) return "current";
+  return String(year);
+}
+__name(parseSeason2, "parseSeason");
+function normalizeWeather(latest) {
+  if (!latest) return null;
+  return {
+    air_temp: latest.air_temperature != null ? Number(latest.air_temperature) : null,
+    track_temp: latest.track_temperature != null ? Number(latest.track_temperature) : null,
+    humidity: latest.humidity != null ? Number(latest.humidity) : null,
+    rain_pct: latest.rainfall != null ? Number(latest.rainfall) <= 1 ? Number(latest.rainfall) * 100 : Number(latest.rainfall) : null,
+    wind_speed: latest.wind_speed != null ? Number(latest.wind_speed) : null,
+    wind_direction: latest.wind_direction != null ? Number(latest.wind_direction) : null
+  };
+}
+__name(normalizeWeather, "normalizeWeather");
+async function getSessionList(year, sessionName) {
+  const query = new URLSearchParams();
+  if (year) query.set("year", String(year));
+  if (sessionName) query.set("session_name", sessionName);
+  const url = `${OPENF1_BASE}/sessions${query.toString() ? `?${query.toString()}` : ""}`;
+  const sessions = await fetchJson2(url);
+  return Array.isArray(sessions) ? sessions : [];
+}
+__name(getSessionList, "getSessionList");
+async function resolveSessionKeyForLatest(season = "current") {
+  const liveSession = await getLiveSession("latest");
+  const status = String(liveSession?.status || "").toLowerCase();
+  if (liveSession?.sessionKey && ["live", "race", "practice", "qualifying"].includes(status)) {
+    return liveSession.sessionKey;
+  }
+  const latestCompleted = await getLatestCompletedRaceSession(season);
+  return latestCompleted?.session_key || "latest";
+}
+__name(resolveSessionKeyForLatest, "resolveSessionKeyForLatest");
+async function getLatestCompletedRaceSession(season = "current") {
+  const parsedSeason = parseSeason2(season);
+  const year = parsedSeason === "current" ? (/* @__PURE__ */ new Date()).getUTCFullYear() : parseInt(parsedSeason, 10);
+  const sessions = await getSessionList(year, "Race");
+  if (!sessions.length) return null;
+  const completed = sessions.filter((session2) => {
+    const endAt = Date.parse(session2?.date_end || "");
+    return Number.isFinite(endAt) && endAt <= Date.now() && session2?.is_cancelled !== true;
+  }).sort((a, b) => Date.parse(a.date_end) - Date.parse(b.date_end));
+  const session = completed[completed.length - 1] || sessions[sessions.length - 1] || null;
+  if (!session) return null;
+  return {
+    session_key: session.session_key || null,
+    meeting_key: session.meeting_key || null,
+    meeting_name: session.meeting_name || null,
+    session_name: session.session_name || null,
+    session_type: session.session_type || null,
+    year: session.year || year,
+    date_start: session.date_start || null,
+    date_end: session.date_end || null
+  };
+}
+__name(getLatestCompletedRaceSession, "getLatestCompletedRaceSession");
 function buildQueryString(params) {
   const query = new URLSearchParams();
   if (params && typeof params === "object") {
@@ -483,7 +522,7 @@ async function getLiveSession(sessionKey = "latest") {
       };
     }
     return {
-      status: session?.session_type || "unknown",
+      status: String(session?.session_type || "unknown").toLowerCase(),
       meeting: session?.meeting_name || null,
       session: session?.session_name || null,
       sessionKey: session?.session_key || null,
@@ -505,21 +544,18 @@ async function getLiveSession(sessionKey = "latest") {
 __name(getLiveSession, "getLiveSession");
 async function getWeather(sessionKey = "latest") {
   try {
+    let resolvedSessionKey = sessionKey;
+    if (!resolvedSessionKey || resolvedSessionKey === "latest") {
+      resolvedSessionKey = await resolveSessionKeyForLatest();
+    }
     const weather = await fetchJson2(
-      `${OPENF1_BASE}/weather?session_key=${sessionKey}`
+      `${OPENF1_BASE}/weather?session_key=${resolvedSessionKey}`
     );
     const latest = Array.isArray(weather) ? weather[0] : null;
     return {
       source: "OpenF1",
       updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      weather: latest ? {
-        air_temperature: latest.air_temperature ?? null,
-        track_temperature: latest.track_temperature ?? null,
-        humidity: latest.humidity ?? null,
-        rainfall: latest.rainfall ?? null,
-        wind_speed: latest.wind_speed ?? null,
-        wind_direction: latest.wind_direction ?? null
-      } : null
+      weather: normalizeWeather(latest)
     };
   } catch (error) {
     return {
@@ -533,8 +569,12 @@ async function getWeather(sessionKey = "latest") {
 __name(getWeather, "getWeather");
 async function getTelemetry(params = {}) {
   try {
+    let resolvedSessionKey = params.session_key || "latest";
+    if (!resolvedSessionKey || resolvedSessionKey === "latest") {
+      resolvedSessionKey = await resolveSessionKeyForLatest();
+    }
     const queryStr = buildQueryString({
-      session_key: params.session_key || "latest",
+      session_key: resolvedSessionKey,
       driver_number: params.driver_number || void 0
     });
     const data = await fetchJson2(`${OPENF1_BASE}/car_data${queryStr}`);
@@ -562,8 +602,127 @@ async function getTelemetry(params = {}) {
   }
 }
 __name(getTelemetry, "getTelemetry");
+async function getStints(sessionKey = "latest") {
+  try {
+    let resolvedSessionKey = sessionKey;
+    if (!resolvedSessionKey || resolvedSessionKey === "latest") {
+      resolvedSessionKey = await resolveSessionKeyForLatest();
+    }
+    const stints = await fetchJson2(
+      `${OPENF1_BASE}/stints?session_key=${resolvedSessionKey}`
+    );
+    return {
+      source: "OpenF1",
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      stints: Array.isArray(stints) ? stints : []
+    };
+  } catch (error) {
+    return {
+      source: "OpenF1",
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      stints: [],
+      error: error.message
+    };
+  }
+}
+__name(getStints, "getStints");
+
+// api/standings.js
+function normalizeRaceStints(results = [], stints = []) {
+  if (!Array.isArray(results) || !results.length) return null;
+  if (!Array.isArray(stints) || !stints.length) return null;
+  const podium = results.slice(0, 3).filter((result) => result?.number != null).map((result) => ({
+    code: result.code || result.short_name || "---",
+    num: result.number,
+    driver: result.driver || result.short_name || "---",
+    stints: []
+  }));
+  const byDriverNumber = new Map(
+    podium.map((driver) => [Number(driver.num), driver])
+  );
+  let totalLaps = 0;
+  stints.forEach((stint) => {
+    const driverNumber = Number(stint?.driver_number);
+    const target = byDriverNumber.get(driverNumber);
+    if (!target) return;
+    const lapStart = Number(stint?.lap_start || 0);
+    const lapEnd = Number(stint?.lap_end || 0);
+    if (!Number.isFinite(lapStart) || !Number.isFinite(lapEnd) || lapEnd < lapStart)
+      return;
+    const lapCount = lapEnd - lapStart + 1;
+    totalLaps = Math.max(totalLaps, lapEnd);
+    target.stints.push({
+      compound: String(stint?.compound || "").toLowerCase() || null,
+      lap_start: lapStart,
+      lap_end: lapEnd,
+      laps: lapCount
+    });
+  });
+  const drivers = podium.map((driver) => ({
+    ...driver,
+    stints: driver.stints.sort((a, b) => a.lap_start - b.lap_start)
+  })).filter((driver) => driver.stints.length);
+  return drivers.length ? { total_laps: totalLaps || 1, drivers } : null;
+}
+__name(normalizeRaceStints, "normalizeRaceStints");
+async function GET(request, env, ctx) {
+  try {
+    const url = new URL(request.url);
+    const season = url.searchParams.get("season") || "current";
+    const cleanSeason = parseSeason(season);
+    const [drivers, constructors, scheduleData] = await Promise.all([
+      getDriverStandings(cleanSeason),
+      getConstructorStandings(cleanSeason),
+      getSchedule(cleanSeason)
+    ]);
+    const schedule = scheduleData.schedule || [];
+    const nextRace = schedule.find((r) => r.status === "upcoming") || null;
+    const lastScheduledRace = [...schedule].reverse().find((r) => r.status === "done") || null;
+    const seasonForRound = scheduleData.season || cleanSeason;
+    const lastRace = lastScheduledRace ? await getLatestRaceResults(seasonForRound, lastScheduledRace.round) : null;
+    if (lastRace) {
+      const [qualifying, latestCompletedSession] = await Promise.all([
+        getLatestQualifying(seasonForRound, lastRace.round),
+        getLatestCompletedRaceSession(seasonForRound)
+      ]);
+      lastRace.qualifying = qualifying;
+      if (latestCompletedSession?.session_key != null) {
+        const [weatherResponse, stintsResponse] = await Promise.all([
+          getWeather(latestCompletedSession.session_key),
+          getStints(latestCompletedSession.session_key)
+        ]);
+        lastRace.weather = weatherResponse?.weather || null;
+        lastRace.stints = normalizeRaceStints(
+          lastRace.results,
+          stintsResponse?.stints || []
+        );
+      }
+    }
+    return jsonResponse(
+      {
+        season: drivers.season,
+        drivers: drivers.drivers,
+        constructors,
+        schedule,
+        next_race: nextRace,
+        last_race: lastRace,
+        source: "Jolpica F1",
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      },
+      { maxAgeSeconds: 60 }
+      // short cache for race-sensitive standings
+    );
+  } catch (error) {
+    return errorResponse(error.message || "Unable to fetch standings", 502);
+  }
+}
+__name(GET, "GET");
 
 // api/live.js
+var live_exports = {};
+__export(live_exports, {
+  GET: () => GET2
+});
 async function GET2(request) {
   try {
     const url = new URL(request.url);
@@ -629,8 +788,8 @@ async function GET3(request) {
     const cleanSeason = parseSeason(season);
     return jsonResponse(
       await getDriverByCode(driverId, cleanSeason),
-      { maxAgeSeconds: 1800 }
-      // 30 minutes cache for driver info
+      { maxAgeSeconds: 60 }
+      // short cache for race-sensitive driver info
     );
   } catch (error) {
     return errorResponse(
@@ -654,7 +813,7 @@ async function GET4(request) {
     return jsonResponse(
       weatherData,
       { maxAgeSeconds: 60 }
-      // 1 minute cache for weather
+      // weather is refreshed frequently but stays cacheable
     );
   } catch (error) {
     return errorResponse(error.message || "Unable to fetch weather", 502);
@@ -784,7 +943,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-WMIhvk/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-tFFGIv/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -816,7 +975,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-WMIhvk/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-tFFGIv/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

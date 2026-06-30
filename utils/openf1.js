@@ -10,6 +10,94 @@ async function fetchJson(url) {
   return response.json();
 }
 
+function parseSeason(seasonParam) {
+  if (!seasonParam || seasonParam === "current") return "current";
+  const year = parseInt(seasonParam, 10);
+  if (isNaN(year) || year < 1950 || year > 2100) return "current";
+  return String(year);
+}
+
+function normalizeWeather(latest) {
+  if (!latest) return null;
+  return {
+    air_temp:
+      latest.air_temperature != null ? Number(latest.air_temperature) : null,
+    track_temp:
+      latest.track_temperature != null
+        ? Number(latest.track_temperature)
+        : null,
+    humidity: latest.humidity != null ? Number(latest.humidity) : null,
+    rain_pct:
+      latest.rainfall != null
+        ? Number(latest.rainfall) <= 1
+          ? Number(latest.rainfall) * 100
+          : Number(latest.rainfall)
+        : null,
+    wind_speed: latest.wind_speed != null ? Number(latest.wind_speed) : null,
+    wind_direction:
+      latest.wind_direction != null ? Number(latest.wind_direction) : null,
+  };
+}
+
+async function getSessionList(year, sessionName) {
+  const query = new URLSearchParams();
+  if (year) query.set("year", String(year));
+  if (sessionName) query.set("session_name", sessionName);
+  const url = `${OPENF1_BASE}/sessions${query.toString() ? `?${query.toString()}` : ""}`;
+  const sessions = await fetchJson(url);
+  return Array.isArray(sessions) ? sessions : [];
+}
+
+async function resolveSessionKeyForLatest(season = "current") {
+  const liveSession = await getLiveSession("latest");
+  const status = String(liveSession?.status || "").toLowerCase();
+  if (
+    liveSession?.sessionKey &&
+    ["live", "race", "practice", "qualifying"].includes(status)
+  ) {
+    return liveSession.sessionKey;
+  }
+
+  const latestCompleted = await getLatestCompletedRaceSession(season);
+  return latestCompleted?.session_key || "latest";
+}
+
+export async function getLatestCompletedRaceSession(season = "current") {
+  const parsedSeason = parseSeason(season);
+  const year =
+    parsedSeason === "current"
+      ? new Date().getUTCFullYear()
+      : parseInt(parsedSeason, 10);
+  const sessions = await getSessionList(year, "Race");
+  if (!sessions.length) return null;
+
+  const completed = sessions
+    .filter((session) => {
+      const endAt = Date.parse(session?.date_end || "");
+      return (
+        Number.isFinite(endAt) &&
+        endAt <= Date.now() &&
+        session?.is_cancelled !== true
+      );
+    })
+    .sort((a, b) => Date.parse(a.date_end) - Date.parse(b.date_end));
+
+  const session =
+    completed[completed.length - 1] || sessions[sessions.length - 1] || null;
+  if (!session) return null;
+
+  return {
+    session_key: session.session_key || null,
+    meeting_key: session.meeting_key || null,
+    meeting_name: session.meeting_name || null,
+    session_name: session.session_name || null,
+    session_type: session.session_type || null,
+    year: session.year || year,
+    date_start: session.date_start || null,
+    date_end: session.date_end || null,
+  };
+}
+
 // Build query string from object
 function buildQueryString(params) {
   const query = new URLSearchParams();
@@ -43,7 +131,7 @@ export async function getLiveSession(sessionKey = "latest") {
     }
 
     return {
-      status: session?.session_type || "unknown",
+      status: String(session?.session_type || "unknown").toLowerCase(),
       meeting: session?.meeting_name || null,
       session: session?.session_name || null,
       sessionKey: session?.session_key || null,
@@ -65,24 +153,20 @@ export async function getLiveSession(sessionKey = "latest") {
 
 export async function getWeather(sessionKey = "latest") {
   try {
+    let resolvedSessionKey = sessionKey;
+    if (!resolvedSessionKey || resolvedSessionKey === "latest") {
+      resolvedSessionKey = await resolveSessionKeyForLatest();
+    }
+
     const weather = await fetchJson(
-      `${OPENF1_BASE}/weather?session_key=${sessionKey}`,
+      `${OPENF1_BASE}/weather?session_key=${resolvedSessionKey}`,
     );
     const latest = Array.isArray(weather) ? weather[0] : null;
 
     return {
       source: "OpenF1",
       updatedAt: new Date().toISOString(),
-      weather: latest
-        ? {
-            air_temperature: latest.air_temperature ?? null,
-            track_temperature: latest.track_temperature ?? null,
-            humidity: latest.humidity ?? null,
-            rainfall: latest.rainfall ?? null,
-            wind_speed: latest.wind_speed ?? null,
-            wind_direction: latest.wind_direction ?? null,
-          }
-        : null,
+      weather: normalizeWeather(latest),
     };
   } catch (error) {
     return {
@@ -96,8 +180,13 @@ export async function getWeather(sessionKey = "latest") {
 
 export async function getTelemetry(params = {}) {
   try {
+    let resolvedSessionKey = params.session_key || "latest";
+    if (!resolvedSessionKey || resolvedSessionKey === "latest") {
+      resolvedSessionKey = await resolveSessionKeyForLatest();
+    }
+
     const queryStr = buildQueryString({
-      session_key: params.session_key || "latest",
+      session_key: resolvedSessionKey,
       driver_number: params.driver_number || undefined,
     });
 
@@ -123,6 +212,32 @@ export async function getTelemetry(params = {}) {
       source: "OpenF1",
       updatedAt: new Date().toISOString(),
       telemetry: null,
+      error: error.message,
+    };
+  }
+}
+
+export async function getStints(sessionKey = "latest") {
+  try {
+    let resolvedSessionKey = sessionKey;
+    if (!resolvedSessionKey || resolvedSessionKey === "latest") {
+      resolvedSessionKey = await resolveSessionKeyForLatest();
+    }
+
+    const stints = await fetchJson(
+      `${OPENF1_BASE}/stints?session_key=${resolvedSessionKey}`,
+    );
+
+    return {
+      source: "OpenF1",
+      updatedAt: new Date().toISOString(),
+      stints: Array.isArray(stints) ? stints : [],
+    };
+  } catch (error) {
+    return {
+      source: "OpenF1",
+      updatedAt: new Date().toISOString(),
+      stints: [],
       error: error.message,
     };
   }

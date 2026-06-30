@@ -114,9 +114,14 @@ function normalizePodium(results = []) {
 
 function normalizeRaceResult(result, positionIndex = 0) {
   return {
-    pos: parseInt(result?.position || result?.positionText || positionIndex + 1, 10),
+    pos: parseInt(
+      result?.position || result?.positionText || positionIndex + 1,
+      10,
+    ),
     code: result?.Driver?.code || result?.Driver?.driverId || "---",
     driverId: result?.Driver?.driverId || result?.Driver?.code || "---",
+    number: result?.Driver?.permanentNumber || null,
+    permanent_number: result?.Driver?.permanentNumber || null,
     short_name:
       result?.Driver?.code ||
       `${result?.Driver?.givenName || ""} ${result?.Driver?.familyName || ""}`.trim() ||
@@ -191,12 +196,16 @@ function selectRaceByRound(races, targetRound) {
   if (targetRound != null) {
     const round = Number.parseInt(targetRound, 10);
     if (Number.isFinite(round)) {
-      const exact = races.find((race) => parseInt(race?.round || 0, 10) === round);
+      const exact = races.find(
+        (race) => parseInt(race?.round || 0, 10) === round,
+      );
       if (exact) return exact;
 
       const eligible = races
         .filter((race) => parseInt(race?.round || 0, 10) <= round)
-        .sort((a, b) => parseInt(a?.round || 0, 10) - parseInt(b?.round || 0, 10));
+        .sort(
+          (a, b) => parseInt(a?.round || 0, 10) - parseInt(b?.round || 0, 10),
+        );
       if (eligible.length) return eligible[eligible.length - 1];
     }
   }
@@ -216,7 +225,10 @@ async function fetchAllRaces(url) {
     const races = payload?.MRData?.RaceTable?.Races || [];
     allRaces.push(...races);
 
-    const pageTotal = Number.parseInt(payload?.MRData?.total || `${races.length}`, 10);
+    const pageTotal = Number.parseInt(
+      payload?.MRData?.total || `${races.length}`,
+      10,
+    );
     if (Number.isFinite(pageTotal)) {
       total = pageTotal;
     } else if (!races.length) {
@@ -241,7 +253,9 @@ export async function getDriverStandings(season = "current") {
   const leaderPts = parseInt(standings[0]?.points || 0, 10);
   return {
     season: list?.season || cleanSeason,
-    drivers: standings.map((entry, idx) => normalizeDriverStanding(entry, idx, leaderPts)),
+    drivers: standings.map((entry, idx) =>
+      normalizeDriverStanding(entry, idx, leaderPts),
+    ),
   };
 }
 
@@ -292,12 +306,19 @@ export async function getDriverByCode(code, season = "current") {
   const driverId = entry.driverId || clean;
   const displayName = getDriverDisplayName(entry);
 
-  const [seasonResultsResponse, allTimeResultsResponse, allTimeQualifyingResponse] =
-    await Promise.allSettled([
-      fetchJson(`${getJolpicaUrl(cleanSeason)}/drivers/${driverId}/results.json`),
-      fetchAllRaces(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results.json`),
-      fetchAllRaces(`https://api.jolpi.ca/ergast/f1/drivers/${driverId}/qualifying.json`),
-    ]);
+  const [
+    seasonResultsResponse,
+    allTimeResultsResponse,
+    allTimeQualifyingResponse,
+  ] = await Promise.allSettled([
+    fetchJson(`${getJolpicaUrl(cleanSeason)}/drivers/${driverId}/results.json`),
+    fetchAllRaces(
+      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results.json`,
+    ),
+    fetchAllRaces(
+      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/qualifying.json`,
+    ),
+  ]);
 
   const seasonResultRaces =
     seasonResultsResponse.status === "fulfilled"
@@ -330,7 +351,10 @@ export async function getDriverByCode(code, season = "current") {
     const results = race?.Results || [];
     return (
       count +
-      results.filter((result) => String(result?.position || result?.positionText || "") === "1").length
+      results.filter(
+        (result) =>
+          String(result?.position || result?.positionText || "") === "1",
+      ).length
     );
   }, 0);
 
@@ -338,11 +362,15 @@ export async function getDriverByCode(code, season = "current") {
     const qualifyingResults = race?.QualifyingResults || [];
     return (
       count +
-      qualifyingResults.filter((qual) => String(qual?.position || "") === "1").length
+      qualifyingResults.filter((qual) => String(qual?.position || "") === "1")
+        .length
     );
   }, 0);
 
-  const currentTeam = seasonResultRaces[0]?.Results?.[0]?.Constructor?.name || entry?.Constructor?.name || "—";
+  const currentTeam =
+    seasonResultRaces[0]?.Results?.[0]?.Constructor?.name ||
+    entry?.Constructor?.name ||
+    "—";
 
   return {
     driverId,
@@ -381,11 +409,13 @@ export async function getSchedule(season = "current") {
 
 export async function getLatestRaceResults(season = "current", round = null) {
   const cleanSeason = parseSeason(season);
-  const payload = round != null
-    ? await fetchJson(`${getJolpicaUrl(cleanSeason)}/${round}/results.json`)
-    : await fetchJson(`${getJolpicaUrl(cleanSeason)}/results.json`);
+  const payload =
+    round != null
+      ? await fetchJson(`${getJolpicaUrl(cleanSeason)}/${round}/results.json`)
+      : await fetchJson(`${getJolpicaUrl(cleanSeason)}/results.json`);
   const races = payload?.MRData?.RaceTable?.Races || [];
-  const race = round != null ? races[0] || null : selectRaceByRound(races, round);
+  const race =
+    round != null ? races[0] || null : selectRaceByRound(races, round);
   if (!race) return null;
 
   const results = race?.Results || [];
@@ -410,10 +440,14 @@ export async function getLatestRaceResults(season = "current", round = null) {
 
 export async function getLatestQualifying(season = "current", round = null) {
   const cleanSeason = parseSeason(season);
-  const payload = round != null
-    ? await fetchJson(`${getJolpicaUrl(cleanSeason)}/${round}/qualifying.json`)
-    : await fetchJson(`${getJolpicaUrl(cleanSeason)}/qualifying.json`);
+  const payload =
+    round != null
+      ? await fetchJson(
+          `${getJolpicaUrl(cleanSeason)}/${round}/qualifying.json`,
+        )
+      : await fetchJson(`${getJolpicaUrl(cleanSeason)}/qualifying.json`);
   const races = payload?.MRData?.RaceTable?.Races || [];
-  const race = round != null ? races[0] || null : selectRaceByRound(races, round);
+  const race =
+    round != null ? races[0] || null : selectRaceByRound(races, round);
   return race ? normalizeQualifyingRace(race) : null;
 }

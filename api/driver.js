@@ -22,7 +22,7 @@ export async function GET(request) {
 
     return jsonResponse(
       await getDriverByCode(driverId, cleanSeason),
-      { maxAgeSeconds: 1800 }, // 30 minutes cache for driver info
+      { maxAgeSeconds: 60 }, // short cache for race-sensitive driver info
     );
   } catch (error) {
     return errorResponse(

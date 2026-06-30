@@ -10,7 +10,7 @@ export async function GET(request) {
 
     return jsonResponse(
       weatherData,
-      { maxAgeSeconds: 60 }, // 1 minute cache for weather
+      { maxAgeSeconds: 60 }, // weather is refreshed frequently but stays cacheable
     );
   } catch (error) {
     return errorResponse(error.message || "Unable to fetch weather", 502);
