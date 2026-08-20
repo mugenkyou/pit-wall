@@ -4,6 +4,9 @@ import * as driver from "./api/driver.js";
 import * as weather from "./api/weather.js";
 import * as telemetry from "./api/telemetry.js";
 import * as schedule from "./api/schedule.js";
+import * as thanks from "./api/thanks.js";
+import * as push from "./api/push.js";
+import * as chat from "./api/chat.js";
 
 const routeMap = new Map([
   ["/api/standings", standings],
@@ -11,6 +14,9 @@ const routeMap = new Map([
   ["/api/weather", weather],
   ["/api/telemetry", telemetry],
   ["/api/schedule", schedule],
+  ["/api/thanks", thanks],
+  ["/api/push/subscribe", push],
+  ["/api/chat", chat],
 ]);
 
 function serveStatic(request, env) {
@@ -21,8 +27,9 @@ function serveStatic(request, env) {
 }
 
 async function invokeRoute(mod, request, env, ctx) {
-  if (typeof mod.GET === "function") {
-    return mod.GET(request, env, ctx);
+  const method = request.method;
+  if (typeof mod[method] === "function") {
+    return mod[method](request, env, ctx);
   }
   return new Response("Method not allowed.", { status: 405 });
 }

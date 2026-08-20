@@ -266,17 +266,19 @@ export async function getConstructorStandings(season = "current") {
   );
   const list = payload?.MRData?.StandingsTable?.StandingsLists?.[0];
 
-  return (list?.ConstructorStandings || []).map((entry, idx) => {
+  const standings = list?.ConstructorStandings || [];
+  const leaderPoints = standings[0] ? parseInt(standings[0].points || 0, 10) : 0;
+
+  return standings.map((entry, idx) => {
     const constructor = entry?.Constructor || {};
     const points = parseInt(entry?.points || 0, 10);
-    const maxPoints = 650; // Approximate max points in season
     return {
       pos: idx + 1,
       id: getTeamId(constructor.name || ""),
       name: constructor.name || "—",
       nationality: constructor.nationality || "—",
       pts: points,
-      pct: Math.round((points / maxPoints) * 100),
+      pct: leaderPoints > 0 ? Math.round((points / leaderPoints) * 100) : 0,
     };
   });
 }

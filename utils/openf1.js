@@ -161,7 +161,7 @@ export async function getWeather(sessionKey = "latest") {
     const weather = await fetchJson(
       `${OPENF1_BASE}/weather?session_key=${resolvedSessionKey}`,
     );
-    const latest = Array.isArray(weather) ? weather[0] : null;
+    const latest = Array.isArray(weather) && weather.length > 0 ? weather[weather.length - 1] : null;
 
     return {
       source: "OpenF1",
@@ -240,5 +240,23 @@ export async function getStints(sessionKey = "latest") {
       stints: [],
       error: error.message,
     };
+  }
+}
+
+export async function getLivePositions(sessionKey) {
+  try {
+    const data = await fetchJson(`${OPENF1_BASE}/position?session_key=${sessionKey}`);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getRaceControl(sessionKey) {
+  try {
+    const data = await fetchJson(`${OPENF1_BASE}/race_control?session_key=${sessionKey}`);
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
   }
 }

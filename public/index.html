@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en" style="--accent: #27f4d2; --accent-2: #27f4d2">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -2696,6 +2696,37 @@
       </div>
     </div>
     <!-- END COLOPHON MODAL -->
+
+    <!-- AI RACE ENGINEER CHAT WIDGET -->
+    <button class="ai-chat-toggle" id="aiChatToggle" aria-label="Open AI Race Engineer">
+      <span class="ai-chat-toggle-icon">⚡</span>
+      <span class="ai-chat-toggle-label">AI Engineer</span>
+    </button>
+
+    <div class="ai-chat-panel hidden" id="aiChatPanel" style="--drv-color: var(--accent);">
+      <div class="ai-chat-header">
+        <div class="ai-chat-header-title">
+          <span class="ai-chat-pulse"></span>
+          <strong>AI Race Engineer</strong>
+        </div>
+        <button class="ai-chat-close" id="aiChatClose" aria-label="Close Chat">&times;</button>
+      </div>
+      <div class="ai-chat-body" id="aiChatBody">
+        <div class="ai-msg ai-msg-assistant">
+          <div class="ai-msg-sender">ENGINEER</div>
+          <div class="ai-msg-text">Pit Wall AI Race Engineer online. Systems nominal. Standing by for telemetry or strategy queries.</div>
+        </div>
+      </div>
+      <div class="ai-chat-suggestions">
+        <button class="ai-suggest-btn">Championship Standings?</button>
+        <button class="ai-suggest-btn">Details on Next Race?</button>
+        <button class="ai-suggest-btn">Weather Implications?</button>
+      </div>
+      <div class="ai-chat-footer">
+        <input type="text" class="ai-chat-input" id="aiChatInput" placeholder="Ask Race Engineer..." />
+        <button class="ai-chat-send" id="aiChatSend">Send</button>
+      </div>
+    </div>
 
     <script defer src="./js/app.js"></script>
   </body>

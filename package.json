@@ -14,5 +14,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.125.0"
   }
 }

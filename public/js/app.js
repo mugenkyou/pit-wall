@@ -1,4 +1,4 @@
-﻿/* ================================================================
+/* ================================================================
    THE PIT WALL · live edition
    Hosted at pitwalllive.vercel.app · data via the pit-wall Worker.
    ================================================================ */
@@ -6,9 +6,6 @@
 const API_URL = (function () {
   const m = document.querySelector('meta[name="pit-wall-api"]');
   if (m && m.content) return m.content;
-  const host = location.hostname;
-  if (host === "localhost" || host === "127.0.0.1")
-    return "http://127.0.0.1:8787/api/standings";
   return "/api/standings";
 })();
 const STORAGE_KEY = "pit-wall:v1";
@@ -2505,7 +2502,7 @@ function toMs(t) {
   if (!m) return null;
   const mins = Number(m[1] || 0),
     secs = Number(m[2]),
-    ms = Number(m[3]);
+    ms = Number(m[3].padEnd(3, "0"));
   return mins * 60000 + secs * 1000 + ms;
 }
 function applyConfig(cfg) {
@@ -2788,6 +2785,119 @@ function setupNavDrawer() {
   }
 }
 
+function setupAIChat() {
+  const toggle = $("aiChatToggle");
+  const panel = $("aiChatPanel");
+  const close = $("aiChatClose");
+  const input = $("aiChatInput");
+  const send = $("aiChatSend");
+  const body = $("aiChatBody");
+  
+  if (!toggle || !panel) return;
+  
+  const history = [
+    { role: "assistant", content: "Pit Wall AI Race Engineer online. Systems nominal. Standing by for telemetry or strategy queries." }
+  ];
+  
+  // Toggle Chat Panel
+  toggle.addEventListener("click", () => {
+    panel.classList.toggle("hidden");
+    if (!panel.classList.contains("hidden")) {
+      input.focus();
+      body.scrollTop = body.scrollHeight;
+    }
+  });
+  
+  if (close) {
+    close.addEventListener("click", () => {
+      panel.classList.add("hidden");
+    });
+  }
+  
+  // Send Message function
+  async function sendMessage(text) {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    
+    // Add user message to UI & history
+    appendMessage("user", cleanText);
+    history.push({ role: "user", content: cleanText });
+    input.value = "";
+    
+    // Add loading indicator
+    const loadingId = appendLoading();
+    
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history.slice(-10) }) // send last 10 messages for context
+      });
+      
+      removeLoading(loadingId);
+      
+      if (!response.ok) throw new Error("Connection failed");
+      const data = await response.json();
+      const reply = data?.choices?.[0]?.message?.content || "Understood. telemetries received, but no response could be generated.";
+      
+      appendMessage("assistant", reply);
+      history.push({ role: "assistant", content: reply });
+    } catch (e) {
+      removeLoading(loadingId);
+      appendMessage("assistant", "Negative. Lost connection to telemetry link. Please retry.");
+    }
+  }
+  
+  // Suggestion buttons
+  document.querySelectorAll(".ai-suggest-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      sendMessage(btn.textContent.replace("?", ""));
+    });
+  });
+  
+  // Event listeners for sending
+  if (send) {
+    send.addEventListener("click", () => sendMessage(input.value));
+  }
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        sendMessage(input.value);
+      }
+    });
+  }
+  
+  function appendMessage(sender, text) {
+    const msgEl = document.createElement("div");
+    msgEl.className = `ai-msg ai-msg-${sender}`;
+    msgEl.innerHTML = `
+      <div class="ai-msg-sender">${sender === "user" ? "YOU" : "ENGINEER"}</div>
+      <div class="ai-msg-text">${escapeHtml(text)}</div>
+    `;
+    body.appendChild(msgEl);
+    body.scrollTop = body.scrollHeight;
+  }
+  
+  function appendLoading() {
+    const id = "ai-loading-" + Date.now();
+    const loadingEl = document.createElement("div");
+    loadingEl.className = `ai-msg ai-msg-assistant`;
+    loadingEl.id = id;
+    loadingEl.innerHTML = `
+      <div class="ai-msg-sender">ENGINEER</div>
+      <div class="ai-msg-text">Calculating…</div>
+    `;
+    body.appendChild(loadingEl);
+    body.scrollTop = body.scrollHeight;
+    return id;
+  }
+  
+  function removeLoading(id) {
+    const el = $(id);
+    if (el) el.remove();
+  }
+}
+
 /* ================================================================
    BOOTSTRAP
    ================================================================ */
@@ -2825,6 +2935,7 @@ function setupNavDrawer() {
   renderChangelog();
   startLivePoll();
   startTelemetryPoll(cfg);
+  setupAIChat();
 
   // safety: if fetch never returns, kill splash after 4 s
   setTimeout(() => hideSplash(), 4000);
