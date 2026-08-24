@@ -25,6 +25,7 @@ export async function GET(request) {
       { maxAgeSeconds: 60 }, // short cache for race-sensitive driver info
     );
   } catch (error) {
+    console.error("Driver API Error:", error);
     return errorResponse(
       error.message || "Driver not found",
       error.message?.includes("not found") ? 404 : 502,

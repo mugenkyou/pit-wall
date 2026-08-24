@@ -293,7 +293,7 @@ export async function getDriverByCode(code, season = "current") {
   }
 
   const cleanSeason = parseSeason(season);
-  const payload = await fetchJson(`${getJolpicaUrl(cleanSeason)}/drivers.json`);
+  const payload = await fetchJson(`${getJolpicaUrl(cleanSeason)}/drivers.json?limit=100`);
   const drivers = payload?.MRData?.DriverTable?.Drivers || [];
   const entry = drivers.find(
     (driver) =>
@@ -314,25 +314,17 @@ export async function getDriverByCode(code, season = "current") {
     allTimeQualifyingResponse,
   ] = await Promise.allSettled([
     fetchJson(`${getJolpicaUrl(cleanSeason)}/drivers/${driverId}/results.json`),
-    fetchAllRaces(
-      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results.json`,
+    fetchJson(
+      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/results/1.json?limit=1`,
     ),
-    fetchAllRaces(
-      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/qualifying.json`,
+    fetchJson(
+      `https://api.jolpi.ca/ergast/f1/drivers/${driverId}/qualifying/1.json?limit=1`,
     ),
   ]);
 
   const seasonResultRaces =
     seasonResultsResponse.status === "fulfilled"
       ? seasonResultsResponse.value?.MRData?.RaceTable?.Races || []
-      : [];
-  const allTimeResultRaces =
-    allTimeResultsResponse.status === "fulfilled"
-      ? allTimeResultsResponse.value || []
-      : [];
-  const allTimeQualifyingRaces =
-    allTimeQualifyingResponse.status === "fulfilled"
-      ? allTimeQualifyingResponse.value || []
       : [];
 
   const seasonResults = seasonResultRaces
@@ -349,25 +341,15 @@ export async function getDriverByCode(code, season = "current") {
     .sort((a, b) => b.round - a.round)
     .slice(0, 5);
 
-  const careerWins = allTimeResultRaces.reduce((count, race) => {
-    const results = race?.Results || [];
-    return (
-      count +
-      results.filter(
-        (result) =>
-          String(result?.position || result?.positionText || "") === "1",
-      ).length
-    );
-  }, 0);
+  const careerWins =
+    allTimeResultsResponse.status === "fulfilled"
+      ? parseInt(allTimeResultsResponse.value?.MRData?.total || "0", 10)
+      : 0;
 
-  const careerPoles = allTimeQualifyingRaces.reduce((count, race) => {
-    const qualifyingResults = race?.QualifyingResults || [];
-    return (
-      count +
-      qualifyingResults.filter((qual) => String(qual?.position || "") === "1")
-        .length
-    );
-  }, 0);
+  const careerPoles =
+    allTimeQualifyingResponse.status === "fulfilled"
+      ? parseInt(allTimeQualifyingResponse.value?.MRData?.total || "0", 10)
+      : 0;
 
   const currentTeam =
     seasonResultRaces[0]?.Results?.[0]?.Constructor?.name ||
